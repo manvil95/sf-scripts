@@ -6,7 +6,6 @@
 > Este script de Bash, denominado validate_deployment.sh, está diseñado para facilitar la validación de despliegues en un entorno de Salesforce. 
 > A través de la ejecución de un comando, el script verifica la validez de un manifiesto y ejecuta un conjunto de pruebas Apex definidas en un archivo de test suite.
 
-
 ### :gear: Ejecución del Script
 
 Para ejecutar el script, ingrese el siguiente comando en una consola Bash:
@@ -44,7 +43,6 @@ Para validar un despliegue utilizando el manifiesto package.xml contra la organi
 3. **Lectura y Procesamiento del Archivo Test Suite**
 
     El script procede a leer el testSuite-meta.xml para extraer los nombres de las clases de pruebas Apex. Esta información se compila en una lista que se utiliza para el comando de validación.
-
 
 4. **Construcción y Ejecución del Comando**
 
