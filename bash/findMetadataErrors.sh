@@ -1,18 +1,44 @@
 #!/bin/bash
 
-# Este script verifica la existencia de ciertos metadatos en una organización de Salesforce a partir de un archivo XML de una (Custom) Application.
+set -euo pipefail
 
+# =====================================================================================
+# Script para verificar la existencia de metadatos en una organización de Salesforce
+# a partir de un archivo XML de Application o PermissionSet.
+#
 # Funcionalidades principales:
-# 1. Verifica si se han proporcionado los parámetros necesarios (ruta del archivo y alias de la organización).
+# 1. Verifica si se han proporcionado los parámetros necesarios (nombre, org, tipo).
 # 2. Verifica e instala la herramienta 'jq' si no está instalada.
 # 3. Verifica si el archivo especificado existe.
 # 4. Procesa el archivo XML para extraer los metadatos especificados.
 # 5. Realiza consultas agrupadas a la organización de Salesforce para verificar la existencia de los metadatos.
 # 6. Imprime los resultados de las consultas, indicando si los metadatos se encontraron o no en la organización.
+#
+# Uso:
+#   ./scripts/bash/findMetadataErrors.sh --metadata-name <metadataName> --target-org <orgName> --metadata-type <application|permissionset>
+#   ./scripts/bash/findMetadataErrors.sh -n <metadataName> -o <orgName> -t <app|ps> [--queries-result] [--export-json]
+#   ./scripts/bash/findMetadataErrors.sh --help
+#
+# Parámetros:
+#   -n, --metadata-name <value>   : Nombre de la metadata a verificar (requerido)
+#   -o, --target-org <value>      : Alias de la organización de Salesforce (requerido)
+#   -t, --metadata-type <value>   : Tipo de metadato: 'application' (app) o 'permissionset' (ps) (requerido)
+#   --export-json                 : Exporta metadata extraída del archivo XML a formato JSON
+#   --queries-result              : Exporta resultados de las consultas a archivo JSON
+#   --help                        : Muestra la ayuda del script
+#
+# Ejemplos:
+#   ./findMetadataErrors.sh -n reportsMetadata -o marketingOrg -t app
+#   ./findMetadataErrors.sh --metadata-name usersMetadata --target-org salesOrg --metadata-type permissionset
+#   ./findMetadataErrors.sh -n productInfo -o devOrg -t application --export-json --queries-result
+# =====================================================================================
 
-# Comando para su ejecución
-# ./scripts/bash/findMetadataErrors-v5.sh --metadata-name metadataName --target-org orgName --metadata-type application
-# ./scripts/bash/findMetadataErrors-v5.sh -n metadataName -o orgName -t app
+#-------------------------------------------------------------------------------------------------
+# C O N F I G U R A C I O N  Y  V A R I A B L E S
+#-------------------------------------------------------------------------------------------------
+
+# Ruta del archivo de resultados
+result_file="result.json"
 
 #-------------------------------------------------------------------------------------------------
 # F U N C I O N E S  P A R A  I M P R I M I R  P O R  P A N T A L L A
@@ -67,42 +93,30 @@ echo_blue_bold() {
 # F U N C I O N E S  S E C U N D A R I A S
 #-------------------------------------------------------------------------------------------------
 
+# Añadido: función para mostrar errores y salir
+fatal_error() {
+    echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+    exit 1
+}
+
 # Función para verificar e instalar jq si no está instalado
 install_jq() {
-    # Verifica si el comando 'jq' no está disponible
     if ! command -v jq &> /dev/null; then
-        # Muestra un mensaje indicando que jq no está instalado
-        echo "jq no está instalado. Instalando jq..."
-        
-        # Verifica si el comando 'choco' (Chocolatey) está disponible
+        echo_yellow "jq no está instalado. Intentando instalar jq..."
         if command -v choco &> /dev/null; then
-            # Instala jq usando Chocolatey
-            choco install jq -y
+            choco install jq -y || fatal_error "No se pudo instalar jq con Chocolatey."
         else
-            # Muestra un mensaje indicando que Chocolatey no está instalado y proporciona un enlace para su instalación
-            echo "Chocolatey no está instalado. Por favor, instala Chocolatey primero: https://chocolatey.org/install"
-            # Termina la ejecución del script con un código de error
-            exit 1
+            fatal_error "Chocolatey no está instalado. Instálalo desde https://chocolatey.org/install o instala jq manualmente."
         fi
-        
-        # Verifica si la instalación de jq fue exitosa
-        if ! command -v jq &> /dev/null; then
-            # Muestra un mensaje indicando que la instalación de jq falló
-            echo "La instalación de jq falló. Por favor, instálalo manualmente."
-            # Termina la ejecución del script con un código de error
-            exit 1
-        fi
+        command -v jq &> /dev/null || fatal_error "La instalación de jq falló. Instálalo manualmente."
     fi
 }
 
 # Función para verificar si el archivo existe
 check_file_exists() {
     echo_yellow "\nVerificando existencia del archivo.xml..."
-    # Verifica si el archivo especificado no existe
     if [ ! -f "$1" ]; then
-        # Muestra un mensaje indicando que el archivo no existe
         echo_red_bold "\nEl archivo.xml $1 no existe."
-        # Termina la ejecución del script con un código de error
         exit 1
     fi
     echo_green "Archivo.xml verificado."
@@ -376,26 +390,21 @@ check_query_results() {
 # Función para mostrar la ayuda
 show_help() {
     echo_blue_bold "\n\nDESCRIPCIÓN"
-    echo -e "Este script busca metadata en el archivo .xml pasado por parámetro. \nRealiza queries en la organización señalada y compara los resultados. \nFinalmente señala aquellos resultados que no están en la organización."
-    
+    echo -e "Este script busca metadata en el archivo .xml pasado por parámetro.\nRealiza queries en la organización señalada y compara los resultados.\nFinalmente señala aquellos resultados que no están en la organización."
     echo_blue_bold "\n\nUSO"
     printf_green "  $"
     printf_blue " $0"
     printf " [-n <value>] [-o <value>] [-t <value>] [--queries-result] [--export-json]\n"
-    
     echo_blue_bold "\nFLAGS"
     printf_green "  -n, --metadata-name <value>"
     printf_red "\t(required)"
     printf "Nombre de la metadata a verificar.\n\n"
-
     printf_green "  -o, --target-org <value>"
     printf_red "\t(required)"
     printf "Alias de la organización de destino.\n\n"
-    
     printf_green "  -t, --metadata-type <value>"
     printf_red "\t(required)"
     printf "Tipo de metadato a verificar: 'application' (app) o 'permissionset' (ps).\n"
-
     echo_blue_bold "\nGLOBAL FLAGS:"
     printf_green "  --export-json"
     printf "\t\tExportar metadata extraída del archivo .xml a formato json.\n\n"
@@ -403,36 +412,12 @@ show_help() {
     printf "\tExportar resultados de queries a archivo json.\n\n"
     printf_green "  --help"
     printf "\t\tMuestra este mensaje de ayuda.\n"
-
     echo_blue_bold "\nEJEMPLOS:"
-    printf "\nEste comando verifica los metadatos denominados 'usersMetadata' en la organización 'salesOrg' y confirma su tipo como 'permissionset'.\n"
-    printf_green "  $"
-    printf_blue " $0"
-    printf " --metadata-name usersMetadata --target-org salesOrg --metadata-type permissionset\n"
-
-    # Ejemplo 2
-    printf "\nAquí se está buscando la metadata 'reportsMetadata' en la organización 'marketingOrg' y se especifica que el tipo es 'application'.\n"
-    printf_green "  $"
-    printf_blue " $0"
-    printf " -n reportsMetadata -o marketingOrg -t app\n"
-
-    # Ejemplo 3
-    printf "\nEste comando no solo verifica la metadata 'customerData' en la organización 'supportOrg' como 'application', sino que también exporta la metadata extraída a un archivo JSON.\n"
-    printf_green "  $"
-    printf_blue " $0"
-    printf " --metadata-name customerData --target-org supportOrg --metadata-type application --export-json\n"
-
-    # Ejemplo 4
-    printf "\nEn este caso, se busca 'salesReports' en 'salesOrg' con el tipo 'permissionset', y además se exportan los resultados de las consultas a un archivo JSON.\n"
-    printf_green "  $"
-    printf_blue " $0"
-    printf " -n salesReports -o salesOrg -t permissionset --queries-result\n"
-
-    # Ejemplo 5
-    printf "\nEste comando realiza la verificación de 'productInfo' en 'devOrg' como 'application' y exporta tanto la metadata extraída como los resultados de las consultas a archivos JSON.\n"
-    printf_green "  $"
-    printf_blue " $0"
-    printf " --metadata-name productInfo --target-org devOrg --metadata-type application --export-json --queries-result\n"
+    printf "\n$0 --metadata-name usersMetadata --target-org salesOrg --metadata-type permissionset\n"
+    printf "$0 -n reportsMetadata -o marketingOrg -t app\n"
+    printf "$0 --metadata-name customerData --target-org supportOrg --metadata-type application --export-json\n"
+    printf "$0 -n salesReports -o salesOrg -t permissionset --queries-result\n"
+    printf "$0 --metadata-name productInfo --target-org devOrg --metadata-type application --export-json --queries-result\n"
 }
 
 # Función para verificar si se han proporcionado los parámetros necesarios
@@ -476,13 +461,12 @@ process_arguments() {
                 keep_query_results=true
                 shift
                 ;;
-            --help)
+            --help|-h)
                 show_help
                 exit 0
                 ;;
             *)
-                echo "Opción desconocida: $1"
-                exit 1
+                fatal_error "Opción desconocida: $1"
                 ;;
         esac
     done
@@ -546,10 +530,9 @@ cleanup_files() {
     if [[ $keep_metadata_json == false ]]; then
         rm -f extractedMetadata.json
     fi
-
-    # if [[ $keep_query_results == false ]]; then
-    #     rm -f result.json
-    # fi
+    if [[ $keep_query_results == false ]]; then
+        rm -f result.json
+    fi
 }
 
 #-------------------------------------------------------------------------------------------------
@@ -571,17 +554,11 @@ declare -A metadata
 
 main() {
     process_arguments "$@"
-    # Verificar si se han proporcionado los parámetros necesarios
     check_parameters
-    # Verificar e instalar jq si no está instalado
     install_jq
-    # Asignar el tipo de metadato y definir file_path y patterns según el tipo
     set_metadata_type
-    # Leer el archivo línea por línea
     extract_metadata
-    # Guardar la metadata extraída en JSON como arrays y con un formato legible
     save_metadata_to_json
-    # Realizar las consultas agrupadas y verificar los resultados
     perform_queries
     print_results
     cleanup_files
