@@ -86,7 +86,7 @@ Para mostrar la ayuda:
 - Es recomendado almacenar el script en la carpeta ./scripts/bash/.
 - Ejecutar el script siempre desde una consola Bash.
 
-## :hammer_and_wrench: findMetadataErrors-v1.sh
+## :hammer_and_wrench: findMetadataErrors.sh
 
 > [!NOTE]
 > Este script se encarga de verificar la existencia de ciertos metadatos dentro de una organización de Salesforce a partir de un archivo XML proporcionado de una aplicación personalizada o conjunto de permisos.
