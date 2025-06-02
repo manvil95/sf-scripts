@@ -153,12 +153,19 @@ fi
 printf "\n\033[34mManifest Directory:\033[0m $dirManifest"
 printf "\n\033[34mTarget Org:\033[0m $orgDefault"
 printf "\n\033[34mTest Suite:\033[0m $DIR_TEST_SUITE"
-printf "\n\033[34mTests a ejecutar:\033[0m $APEXTEST_LIST"
+printf "\n\033[34mTests a ejecutar:\033[0m $APEXTEST_LIST\n"
 
-# Determina si la organización es sandbox o producción usando la CLI de Salesforce
-ORG_TYPE=$(sf org display --target-org "$orgDefault" --json | grep -o '"isSandbox": *[a-z]*' | awk -F: '{print $2}' | tr -d ' ,')
+# Obtener el valor de instanceUrl desde el JSON utilizando jq
+INSTANCE_URL=$(sf org display --target-org "$orgDefault" --json | jq -r '.result.instanceUrl')
+printf "\n\033[36mInstance Url:\033[0m $INSTANCE_URL"
 
-if [[ "$ORG_TYPE" == "true" ]]; then
+# Verifica si el valor obtenido es válido
+if [[ -z "$INSTANCE_URL" ]]; then
+    printf "\n\033[1;31mError:\033[0m No se pudo determinar el URL de la instancia (instanceUrl). Verifica que la organización objetivo exista y que tengas acceso.\n"
+    exit 1
+fi
+
+if [[ "$INSTANCE_URL" == *"sandbox"* ]]; then
     printf "\n\033[36mTipo de organización:\033[0m SANDBOX (se usará --dry-run)\n"
     # Comando para SANDBOX: dry-run
     printf "\n\033[34mComando a ejecutar:\033[0m\n"
