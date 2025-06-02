@@ -49,23 +49,51 @@ set -euo pipefail
 
 # Función de ayuda
 show_help() {
-    printf "\n\033[1;36mUso:\033[0m $0 <nombre_del_manifiesto> <organizacion_objetivo> [testSuite]\n"
-    printf "Ejemplo: $0 package.xml myOrg\n"
-    printf "         $0 package.xml myOrg CustomSuite\n"
-    printf "         $0 -h\n"
-    printf "         $0 --help\n\n"
-    exit 0
+    echo -e "\033[1;34m\n\nDESCRIPCIÓN\033[0m"
+    echo -e "Este script genera un comando para validar un despliegue contra un entorno de Salesforce utilizando un manifiesto y un conjunto de tests Apex.\nDetecta automáticamente si la organización es sandbox o producción y ejecuta el comando adecuado."
+    echo -e "\033[1;34m\n\nUSO\033[0m"
+    printf "\033[32m  $\033[0m"
+    printf "\033[34m $0\033[0m"
+    printf " <nombre_del_manifiesto> <organizacion_objetivo> [testSuite]\n"
+    printf "\033[32m  $\033[0m"
+    printf "\033[34m $0\033[0m"
+    printf " -h\n"
+    printf "\033[32m  $\033[0m"
+    printf "\033[34m $0\033[0m"
+    printf " --help\n"
+    echo -e "\033[1;34m\nFLAGS\033[0m"
+    printf "\033[32m  <nombre_del_manifiesto>\033[0m"
+    printf "\033[31m\t(requerido)\033[0m"
+    printf " Nombre del archivo XML del manifiesto (en ./manifest/).\n\n"
+    printf "\033[32m  <organizacion_objetivo>\033[0m"
+    printf "\033[31m\t(requerido)\033[0m"
+    printf " Alias o username de la organización de Salesforce.\n\n"
+    printf "\033[32m  [testSuite]\033[0m"
+    printf "\t\t\t(Opcional) Nombre del archivo de test suite (por defecto: SuiteToTest).\n\n"
+    printf "\033[32m  -h, --help\033[0m"
+    printf "\t\t\tMuestra este mensaje de ayuda.\n"
+    echo -e "\033[1;34m\nEJEMPLOS:\033[0m"
+    printf "\n$0 package.xml myOrg\n"
+    printf "$0 package.xml myOrg CustomSuite\n"
+    printf "$0 -h\n"
+    printf "$0 --help\n"
+    echo -e "\033[1;34m\nFUNCIONAMIENTO:\033[0m"
+    echo -e "- Verifica la existencia de los archivos requeridos.\n- Lee el test suite y extrae las clases de test Apex.\n- Detecta si la organización es SANDBOX o PRODUCCIÓN.\n- Si es SANDBOX, ejecuta un despliegue en modo simulación (dry-run).\n- Si es PRODUCCIÓN, ejecuta una validación real usando 'sf project deploy validate' (sin --dry-run).\n- Muestra el comando generado y ejecuta la validación."
 }
 
 # Mostrar ayuda si se solicita
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     show_help
+    exit 0
 fi
 
 # Comprobación de argumentos de entrada
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
-    printf "\n\033[1;31mError:\033[0m Se requieren 2 o 3 argumentos: 1) archivo de manifiesto, 2) organización objetivo de Salesforce, 3) (opcional) archivo de test suite\n"
+    if [[ "${1:-}" != "-h" && "${1:-}" != "--help" ]]; then
+        printf "\n\033[1;31mError:\033[0m Se requieren 2 o 3 argumentos: 1) archivo de manifiesto, 2) organización objetivo de Salesforce, 3) (opcional) archivo de test suite\n"
+    fi
     show_help
+    exit 1
 fi
 
 # Validar que la CLI de Salesforce esté instalada
