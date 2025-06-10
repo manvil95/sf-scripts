@@ -56,11 +56,47 @@ set -euo pipefail
 
 # Función de ayuda
 show_help() {
-    printf "\n\033[1;36mUso:\033[0m $0 [-x, --manifest <nombre_del_manifiesto>] [-o, --target-org <organizacion_objetivo> [--pre-destructive-changes <archivo>] [--post-destructive-changes <archivo>] [--test-suite <testSuite>]\n"
-    printf "Ejemplo: $0 -x package.xml -o myOrg\n"
-    printf "         $0 -x package.xml -o myOrg --pre-destructive-changes prechanges.xml --post-destructive-changes postchanges.xml --test-suite CustomSuite\n"
-    printf "         $0 -h\n"
-    printf "         $0 --help\n\n"
+    echo -e "\033[1;34m\n\nDESCRIPCIÓN\033[0m"
+    echo -e "Este script valida un despliegue en Salesforce usando un manifiesto, un test suite y opcionalmente archivos de cambios destructivos previos y posteriores."
+    echo -e "Detecta automáticamente si la organización es SANDBOX o PRODUCCIÓN y ejecuta el comando adecuado."
+    echo -e "\033[1;34m\n\nUSO\033[0m"
+    printf "\033[32m  $\033[0m"
+    printf "\033[34m $0\033[0m"
+    printf " [-x, --manifiest <manifiesto>] [-o, --target-org <org>] [--pre-destructive-changes <archivo>] [--post-destructive-changes <archivo>] [--test-suite <suite>]\n"
+    printf "\033[32m  $\033[0m"
+    printf "\033[34m $0\033[0m"
+    printf " -h\n"
+    printf "\033[32m  $\033[0m"
+    printf "\033[34m $0\033[0m"
+    printf " --help\n"
+    echo -e "\033[1;34m\nFLAGS\033[0m"
+    printf "\033[32m  -x, --manifest <archivo>\033[0m"
+    printf "\033[31m\t\t(requerido)\033[0m"
+    printf " Manifiesto XML (en ./manifest/).\n\n"
+    printf "\033[32m  -o, --target-org <org>\033[0m"
+    printf "\033[31m\t\t(requerido)\033[0m"
+    printf " Alias o username de la organización de Salesforce.\n\n"
+    printf "\033[32m  --pre-destructive-changes <archivo>\033[0m"
+    printf "\t(Opcional) Archivo de cambios destructivos previos.\n\n"
+    printf "\033[32m  --post-destructive-changes <archivo>\033[0m"
+    printf "\t(Opcional) Archivo de cambios destructivos posteriores.\n\n"
+    printf "\033[32m  --test-suite <suite>\033[0m"
+    printf "\t\t\t(Opcional) Nombre del test suite (por defecto: SuiteToTest).\n\n"
+    printf "\033[32m  -h, --help\033[0m"
+    printf "\t\t\t\tMuestra este mensaje de ayuda.\n"
+    echo -e "\033[1;34m\nEJEMPLOS:\033[0m"
+    printf "\n$0 -x package.xml -o myOrg\n"
+    printf "$0 -x package.xml -o myOrg --test-suite CustomSuite\n"
+    printf "$0 -x package.xml -o myOrg --pre-destructive-changes pre.xml --post-destructive-changes post.xml\n"
+    printf "$0 -h\n"
+    printf "$0 --help\n"
+    echo -e "\033[1;34m\nFUNCIONAMIENTO:\033[0m"
+    echo -e "- Valida la existencia de los archivos requeridos."
+    echo -e "- Lee el test suite y extrae las clases de test Apex."
+    echo -e "- Detecta si la organización es SANDBOX o PRODUCCIÓN."
+    echo -e "- Si es SANDBOX, ejecuta un despliegue en modo simulación (dry-run)."
+    echo -e "- Si es PRODUCCIÓN, ejecuta una validación real usando 'sf project deploy validate' (sin --dry-run)."
+    echo -e "- Muestra el comando generado y ejecuta la validación."
     exit 0
 }
 
@@ -80,7 +116,7 @@ manifest_file=""
 org_target=""
 pre_destructive_changes=""
 post_destructive_changes=""
-test_suite="SuiteTest"
+test_suite=""
 
 # Parseo de los argumentos
 while [[ "$#" -gt 0 ]]; do
@@ -109,7 +145,7 @@ while [[ "$#" -gt 0 ]]; do
             if [[ -z "$test_suite" ]]; then
                 test_suite="$1"
             else
-                printf "\n\033[1;31mError:\033[0m Argumento no reconocido: $1\n"
+                print_error "Argumento no reconocido: $1"
                 show_help
             fi
             shift
@@ -117,9 +153,58 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+# 1. Modularidad y escalabilidad: separar en funciones
+print_error() {
+    echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+}
+print_info() {
+    echo -e "\033[34m[INFO]\033[0m $1"
+}
+print_success() {
+    echo -e "\033[32m[SUCCESS]\033[0m $1"
+}
+print_warning() {
+    echo -e "\033[33m[WARNING]\033[0m $1"
+}
+
+# 2. Validación de parámetros y flags
+validate_parameters() {
+    if [[ -z "$manifest_file" ]]; then
+        print_error "El manifiesto es obligatorio (-x o --manifest)."
+        show_help
+        exit 1
+    fi
+    if [[ -z "$org_target" ]]; then
+        print_error "La organización objetivo es obligatoria (-o o --target-org)."
+        show_help
+        exit 1
+    fi
+    if [[ -z "$test_suite" ]]; then
+        test_suite="suitTestToDeploy"
+    fi
+    if [[ -n "$pre_destructive_changes" && ! -f "$pre_destructive_changes" ]]; then
+        print_error "El archivo de cambios destructivos previos no existe: $pre_destructive_changes"
+        exit 1
+    fi
+    if [[ -n "$post_destructive_changes" && ! -f "$post_destructive_changes" ]]; then
+        print_error "El archivo de cambios destructivos posteriores no existe: $post_destructive_changes"
+        exit 1
+    fi
+}
+
+# 3. Legibilidad y comprensión: comentarios y resumen de parámetros
+print_summary() {
+    print_info "Manifest Directory: $dirManifest"
+    print_info "Target Org: $orgDefault"
+    print_info "Test Suite: $DIR_TEST_SUITE"
+    print_info "Tests a ejecutar: $(echo $APEXTEST_LIST | wc -w)"
+    print_info "Pre Destructive Changes: $pre_destructive_changes"
+    print_info "Post Destructive Changes: $post_destructive_changes"
+}
+
 # Validar que la CLI de Salesforce esté instalada
 if ! command -v sf >/dev/null 2>&1; then
-    printf "\n\033[1;31mError:\033[0m La CLI de Salesforce (sf) no está instalada o no está en el PATH.\n"
+    print_error "La CLI de Salesforce (sf) no está instalada o no está en el PATH."
     exit 1
 fi
 
@@ -127,40 +212,31 @@ fi
 dirManifest="./manifest/$manifest_file" # Ruta al fichero XML del manifiesto
 orgDefault="$org_target" # Organización objetivo de Salesforce
 
-# Ruta del archivo testSuite (tercer argumento opcional)
-testSuiteFile="${3:-SuiteTest}"
-DIR_TEST_SUITE="./unpackaged/main/default/testSuites/$testSuiteFile.testSuite-meta.xml"
+# Validación de parámetros y archivos
+validate_parameters
 
-# Inicializa la lista de pruebas
-APEXTEST_LIST=""
+# Ruta del archivo testSuite correctamente (después de validar y asignar test_suite)
+DIR_TEST_SUITE="./unpackaged/main/default/testSuites/${test_suite}.testSuite-meta.xml"
 
-printf "\n\n\033[34mTest Suite directory:\033[0m $DIR_TEST_SUITE\n"
+print_info "Test Suite directory: $DIR_TEST_SUITE"
 
 # Verifica si el archivo de manifiesto existe
 if [[ ! -f "$dirManifest" ]]; then
-    printf "\n\033[1;31mError:\033[0m El archivo $manifest_file no existe en la ruta especificada: $dirManifest\n"
-    exit 1
-fi
-
-# Comprobar si se proporcionaron archivos para cambios destructivos
-if [[ -n "$pre_destructive_changes" && ! -f "$pre_destructive_changes" ]]; then
-    printf "\n\033[1;31mError:\033[0m El archivo de cambios destructivos previos no existe: $pre_destructive_changes\n"
-    exit 1
-fi
-
-if [[ -n "$post_destructive_changes" && ! -f "$post_destructive_changes" ]]; then
-    printf "\n\033[1;31mError:\033[0m El archivo de cambios destructivos posteriores no existe: $post_destructive_changes\n"
+    print_error "El archivo $manifest_file no existe en la ruta especificada: $dirManifest"
     exit 1
 fi
 
 # Verifica si el archivo de test suite existe
 if [[ ! -f "$DIR_TEST_SUITE" ]]; then
-    printf "\n\033[1;31mError:\033[0m El archivo de test suite no existe: $DIR_TEST_SUITE\n"
+    print_error "El archivo de test suite no existe: $DIR_TEST_SUITE"
     exit 1
 fi
 
-printf "\n\033[32mVerificado fichero $manifest_file. \033[0m\n"
-printf "\n\033[33mInicio proceso de lectura de test...\033[0m"
+print_success "Verificado fichero $manifest_file."
+print_info "Inicio proceso de lectura de test..."
+
+# Inicializa la lista de pruebas
+APEXTEST_LIST=""
 
 # Procesa el archivo de test suite
 while read -r line; do
@@ -173,51 +249,46 @@ done < "$DIR_TEST_SUITE"
 # Elimina el último espacio en la lista de pruebas
 APEXTEST_LIST=${APEXTEST_LIST% }
 
-printf "\n\033[32mFinalizado proceso de lectura de test. \033[0m\n"
+print_success "Finalizado proceso de lectura de test."
 
 # Verifica que la lista de tests no esté vacía
 if [[ -z "$APEXTEST_LIST" ]]; then
-    printf "\n\033[1;31mError:\033[0m No se encontraron clases de test en el archivo de test suite: $DIR_TEST_SUITE\n"
+    print_error "No se encontraron clases de test en el archivo de test suite: $DIR_TEST_SUITE"
     exit 1
 fi
 
-# Imprimir valores introducidos
-printf "\n\033[34mManifest Directory:\033[0m $dirManifest"
-printf "\n\033[34mTarget Org:\033[0m $orgDefault"
-printf "\n\033[34mTest Suite:\033[0m $DIR_TEST_SUITE"
-printf "\n\033[34mTests a ejecutar:\033[0m $(echo $APEXTEST_LIST | wc -w)"
-printf "\n\033[34mPre Destructive Changes:\033[0m $pre_destructive_changes"
-printf "\n\033[34mPost Destructive Changes:\033[0m $post_destructive_changes\n\n"
+# Imprimir resumen de parámetros
+print_summary
 
 # Obtener el valor de instanceUrl desde el JSON utilizando jq
 INSTANCE_URL=$(sf org display --target-org "$orgDefault" --json | jq -r '.result.instanceUrl')
-printf "\n\033[36mInstance Url:\033[0m $INSTANCE_URL"
+print_info "Instance Url: $INSTANCE_URL"
 
 # Verifica si el valor obtenido es válido
 if [[ -z "$INSTANCE_URL" ]]; then
-    printf "\n\033[1;31mError:\033[0m No se pudo determinar el URL de la instancia (instanceUrl). Verifica que la organización objetivo exista y que tengas acceso.\n"
+    print_error "No se pudo determinar el URL de la instancia (instanceUrl). Verifica que la organización objetivo exista y que tengas acceso.\n"
     exit 1
 fi
 
 if [[ "$INSTANCE_URL" == *"sandbox"* ]]; then
-    printf "\n\033[36mTipo de organización:\033[0m SANDBOX (se usará --dry-run)\n"
+    print_info "Tipo de organización: SANDBOX (se usará --dry-run)\n"
     # Comando para SANDBOX: dry-run
-    printf "\n\033[34mComando a ejecutar:\033[0m\n"
+    print_info "Comando a ejecutar:\n"
     
-    printf "\n\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m\n\n"
+    print_info "\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m\n\n"
     
     command="sf project start deploy --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST --dry-run"
 else
-    printf "\n\033[36mTipo de organización:\033[0m PRODUCCIÓN (validación real, sin --dry-run)\n"
+    print_info "\nTipo de organización:\033[0m PRODUCCIÓN (validación real, sin --dry-run)"
     # Comando para PRODUCCIÓN: validación real
-    printf "\n\033[34mComando a ejecutar:\033[0m\n"
+    print_info "\nComando a ejecutar:"
     
-    printf "\n\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST\n\n"
+    print_info "\n\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST\n\n"
 
     command="sf project deploy validate --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST"
 fi
 
 # Ejecuta el comando de Salesforce según el tipo de organización
-printf "\n\033[33mEjecutando validación...\033[0m"
+print_info "Ejecutando validación..."
 eval "$command"
-printf "\n\033[32mValidación finalizada.\033[0m"
+print_success "\n\033[32mValidación finalizada.\033[0m"
