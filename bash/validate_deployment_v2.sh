@@ -117,6 +117,7 @@ org_target=""
 pre_destructive_changes=""
 post_destructive_changes=""
 test_suite=""
+command=""
 
 # Parseo de los argumentos
 while [[ "$#" -gt 0 ]]; do
@@ -155,16 +156,16 @@ done
 
 # 1. Modularidad y escalabilidad: separar en funciones
 print_error() {
-    echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+    echo -e "\033[1;31m[ERROR]\033[0m\t  $1" >&2
 }
 print_info() {
-    echo -e "\033[34m[INFO]\033[0m $1"
+    echo -e "\033[34m[INFO]\033[0m\t  $1"
 }
 print_success() {
     echo -e "\033[32m[SUCCESS]\033[0m $1"
 }
 print_warning() {
-    echo -e "\033[33m[WARNING]\033[0m $1"
+    echo -e "\033[33m[WARNING]\033[0m\t $1"
 }
 
 # 2. Validación de parámetros y flags
@@ -180,7 +181,7 @@ validate_parameters() {
         exit 1
     fi
     if [[ -z "$test_suite" ]]; then
-        test_suite="suitTestToDeploy"
+        test_suite="SuitTestToUploadPro"
     fi
     if [[ -n "$pre_destructive_changes" && ! -f "$pre_destructive_changes" ]]; then
         print_error "El archivo de cambios destructivos previos no existe: $pre_destructive_changes"
@@ -198,8 +199,12 @@ print_summary() {
     print_info "Target Org: $orgDefault"
     print_info "Test Suite: $DIR_TEST_SUITE"
     print_info "Tests a ejecutar: $(echo $APEXTEST_LIST | wc -w)"
-    print_info "Pre Destructive Changes: $pre_destructive_changes"
-    print_info "Post Destructive Changes: $post_destructive_changes"
+    if [[ -n "$pre_destructive_changes" && -f "$pre_destructive_changes" ]]; then
+        print_info "Pre Destructive Changes: $pre_destructive_changes"
+    fi
+    if [[ -n "$post_destructive_changes" && -f "$post_destructive_changes" ]]; then
+        print_info "Post Destructive Changes: $post_destructive_changes"
+    fi
 }
 
 # Validar que la CLI de Salesforce esté instalada
@@ -218,21 +223,22 @@ validate_parameters
 # Ruta del archivo testSuite correctamente (después de validar y asignar test_suite)
 DIR_TEST_SUITE="./unpackaged/main/default/testSuites/${test_suite}.testSuite-meta.xml"
 
-print_info "Test Suite directory: $DIR_TEST_SUITE"
-
+print_info "Verificando fichero $manifest_file..."
 # Verifica si el archivo de manifiesto existe
 if [[ ! -f "$dirManifest" ]]; then
     print_error "El archivo $manifest_file no existe en la ruta especificada: $dirManifest"
     exit 1
 fi
+print_success "Verificado fichero $manifest_file."
 
+print_info "Verificando Test Suite directory: "$DIR_TEST_SUITE"..."
 # Verifica si el archivo de test suite existe
 if [[ ! -f "$DIR_TEST_SUITE" ]]; then
     print_error "El archivo de test suite no existe: $DIR_TEST_SUITE"
     exit 1
 fi
+print_success "Verificado Test Suite directory: "$DIR_TEST_SUITE"."
 
-print_success "Verificado fichero $manifest_file."
 print_info "Inicio proceso de lectura de test..."
 
 # Inicializa la lista de pruebas
@@ -271,21 +277,69 @@ if [[ -z "$INSTANCE_URL" ]]; then
 fi
 
 if [[ "$INSTANCE_URL" == *"sandbox"* ]]; then
-    print_info "Tipo de organización: SANDBOX (se usará --dry-run)\n"
+    print_info "Tipo de organización: SANDBOX (se usará --dry-run)"
     # Comando para SANDBOX: dry-run
-    print_info "Comando a ejecutar:\n"
+    print_info "Comando a ejecutar:"
     
-    print_info "\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m\n\n"
+    # No hay pre ni post destructive changes
+    if [[ -z "$pre_destructive_changes" && ! -f "$pre_destructive_changes" && -z "$post_destructive_changes" && ! -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m"
+        
+        command="sf project start deploy --manifest $dirManifest --target-org $orgDefault --test-level RunSpecifiedTests --tests $APEXTEST_LIST --dry-run"
+    fi
     
-    command="sf project start deploy --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST --dry-run"
+    # Hay pre destructive changes
+    if [[ -n "$pre_destructive_changes" && -f "$pre_destructive_changes" && -z "$post_destructive_changes" && ! -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m"
+        
+        command="sf project start deploy --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST --dry-run"
+    fi
+    
+    # Hay post destructive changes
+    if [[ -z "$pre_destructive_changes" && ! -f "$pre_destructive_changes" && -n "$post_destructive_changes" && -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m"
+        
+        command="sf project start deploy --manifest $dirManifest --target-org $orgDefault --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST --dry-run"
+    fi
+    
+    # Hay pre y post destructive changes
+    if [[ -n "$pre_destructive_changes" && -f "$pre_destructive_changes" && -n "$post_destructive_changes" && -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project start deploy\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST \033[34m--dry-run\033[0m"
+        
+        command="sf project start deploy --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST --dry-run"
+    fi
 else
     print_info "\nTipo de organización:\033[0m PRODUCCIÓN (validación real, sin --dry-run)"
     # Comando para PRODUCCIÓN: validación real
     print_info "\nComando a ejecutar:"
     
-    print_info "\n\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST\n\n"
-
-    command="sf project deploy validate --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST"
+    # No hay pre ni post destructive changes
+    if [[ -z "$pre_destructive_changes" && ! -f "$pre_destructive_changes" && -z "$post_destructive_changes" && ! -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST"
+        
+        command="sf project deploy validate --manifest $dirManifest --target-org $orgDefault --test-level RunSpecifiedTests --tests $APEXTEST_LIST "
+    fi
+    
+    # Hay pre destructive changes
+    if [[ -n "$pre_destructive_changes" && -f "$pre_destructive_changes" && -z "$post_destructive_changes" && ! -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST"
+        
+        command="sf project deploy validate --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST "
+    fi
+    
+    # Hay post destructive changes
+    if [[ -z "$pre_destructive_changes" && ! -f "$pre_destructive_changes" && -n "$post_destructive_changes" && -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST"
+        
+        command="sf project deploy validate --manifest $dirManifest --target-org $orgDefault --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST "
+    fi
+    
+    # Hay pre y post destructive changes
+    if [[ -n "$pre_destructive_changes" && -f "$pre_destructive_changes" && -n "$post_destructive_changes" && -f "$post_destructive_changes" ]]; then
+        print_info "\033[32msf project deploy validate\033[0m \033[34m--manifest\033[0m $dirManifest \033[34m--target-org\033[0m $orgDefault \033[34m--pre-destructive-changes\033[0m $pre_destructive_changes \033[34m--post-destructive-changes\033[0m $post_destructive_changes \033[34m--test-level\033[0m RunSpecifiedTests \033[34m--tests\033[0m $APEXTEST_LIST"
+        
+        command="sf project deploy validate --manifest $dirManifest --target-org $orgDefault --pre-destructive-changes $pre_destructive_changes --post-destructive-changes $post_destructive_changes --test-level RunSpecifiedTests --tests $APEXTEST_LIST "
+    fi
 fi
 
 # Ejecuta el comando de Salesforce según el tipo de organización
