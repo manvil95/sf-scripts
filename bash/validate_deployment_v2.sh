@@ -181,7 +181,7 @@ validate_parameters() {
         exit 1
     fi
     if [[ -z "$test_suite" ]]; then
-        test_suite="SuitTestToUploadPro"
+        test_suite="SuiteTest"
     fi
     if [[ -n "$pre_destructive_changes" && ! -f "$pre_destructive_changes" ]]; then
         print_error "El archivo de cambios destructivos previos no existe: $pre_destructive_changes"
